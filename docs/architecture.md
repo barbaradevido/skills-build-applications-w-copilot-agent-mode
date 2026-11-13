@@ -30,20 +30,25 @@ OctoFit Tracker is a three-tier application for a school fitness program. The st
 
 Record your plan here before editing code.
 
-- Presentation tier decision:
-- Logic tier decision:
-- Data tier decision:
-- Activity tracking approach:
-- Team management approach:
-- Leaderboard approach:
-- Workout suggestions approach:
+- Presentation tier decision: Build the app as route-based pages that fetch from the API and render accessible loading, empty, and error states. Each route should be driven by the contract in `octofit-tracker/frontend/tests/app.contract.test.tsx`, keeping the UI thin and focused on rendering data rather than business logic.
+- Logic tier decision: Keep the Express API in a single app entry point with route handlers that validate request bodies, convert bad references into deliberate 4xx responses, and return normalized JSON payloads for activities, teams, leaderboard, and workout suggestions.
+- Data tier decision: Define strict Mongoose schemas for users, teams, activities, and workouts, with required fields, default arrays, and data relationships that match the seeded fixtures and API contract. Use seed idempotency to preserve existing data and add new records without duplication.
+- Activity tracking approach: Require `user`, `team`, `type`, `minutes`, `points`, and `occurredAt` at the model layer; compute point totals from the submitted activity and reject invalid or missing user/team references with 4xx responses instead of cast errors.
+- Team management approach: Treat team membership as a Mongo array of user IDs, default it to an empty array, and validate that `name` and `mascot` are present while allowing list/create endpoints to return the members array in the response.
+- Leaderboard approach: Aggregate activity points by team, sort descending, and assign 1-based ranks while preserving a stable order for tied values when needed by the data contract.
+- Workout suggestions approach: Match each seeded user's email to their latest activity pattern or fitness goal, choose the highest-priority workout that aligns with that pattern, and include a reasoning string describing the link to the user's recent activities.
 
 ## Test plan
 
 Record the commands you run and what each failure means.
 
-- Data-tier command: `npm run test:data --prefix octofit-tracker/backend`
-- API command: `npm run test:api --prefix octofit-tracker/backend`
-- Frontend command: `npm test --prefix octofit-tracker/frontend`
-- Backend build command: `npm run build --prefix octofit-tracker/backend`
-- Frontend build command: `npm run build --prefix octofit-tracker/frontend`
+- Data-tier command: `npm run test:data --prefix octofit-tracker/backend`  
+  Failing tests here indicate the Mongo models do not enforce the required schema contract. The current failures show missing validation for `name`, `email`, `fitnessGoal`, `team`, `activity` fields, and `Workout.focus`/`minutes`/`difficulty` — this is the root data-layer contract to fix first.
+- API command: `npm run test:api --prefix octofit-tracker/backend`  
+  Failing tests here indicate the Express routes are either not implemented or not validating input properly. The response mismatches show that invalid activities and teams are returning 501/incorrect statuses, leaderboard aggregation is empty, and workout suggestions are not matching the seeded user patterns.
+- Frontend command: `npm test --prefix octofit-tracker/frontend`  
+  Failing tests here indicate the React app is still in the placeholder state and has not connected to the API contract. The implementation must render the activity list, team list, leaderboard, and workout suggestions with the expected loading, empty, and error states.
+- Backend build command: `npm run build --prefix octofit-tracker/backend`  
+  This confirms the TypeScript backend compiles cleanly once the data models and API handlers satisfy the contract; it is a secondary safety check after the domain logic is fixed.
+- Frontend build command: `npm run build --prefix octofit-tracker/frontend`  
+  This confirms the Vite/React presentation layer compiles once the UI is wired to the API and the tests are satisfied; it is a final integration check after the API contract is stable.
